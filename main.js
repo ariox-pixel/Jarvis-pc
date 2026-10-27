@@ -121,6 +121,64 @@ function cartella(nome) {
   return null;
 }
 
+
+/* ------------------------------------------- confini di sicurezza */
+
+/**
+ * Jarvis puo scrivere, spostare e cancellare SOLO dentro le cartelle personali.
+ * Fuori da qui (Windows, Programmi, altri utenti) non tocca niente, nemmeno se
+ * glielo si chiede. Un assistente che puo scrivere ovunque e un assistente che,
+ * il giorno in cui sbaglia, rompe il sistema operativo.
+ */
+function dentroCasa(percorso) {
+  try {
+    const casa = path.resolve(os.homedir());
+    const p = path.resolve(percorso);
+    return p === casa || p.startsWith(casa + path.sep);
+  } catch (e) { return false; }
+}
+
+/** Trasforma un percorso detto a voce in uno vero dentro le cartelle personali. */
+function percorsoUtente(testo) {
+  const t = String(testo || '').trim().replace(/^["']|["']$/g, '');
+  if (!t) return null;
+  if (path.isAbsolute(t)) return dentroCasa(t) ? t : null;
+  // "documenti/nota.txt" oppure "desktop\roba"
+  const pezzi = t.replace(/\\/g, '/').split('/');
+  const base = cartella(pezzi[0]);
+  const completo = base ? path.join(base, ...pezzi.slice(1)) : path.join(os.homedir(), ...pezzi);
+  return dentroCasa(completo) ? completo : null;
+}
+
+/** I caratteri che SendKeys interpreta come comandi vanno protetti. */
+function proteggiTasti(testo) {
+  return String(testo || '').replace(/([+^%~(){}\[\]])/g, '{$1}');
+}
+
+/** "ctrl+c", "alt+tab", "invio" -> la scrittura che vuole SendKeys. */
+function comboTasti(testo) {
+  const nomi = {
+    invio: '{ENTER}', enter: '{ENTER}', esc: '{ESC}', escape: '{ESC}', tab: '{TAB}',
+    spazio: ' ', su: '{UP}', giu: '{DOWN}', sinistra: '{LEFT}', destra: '{RIGHT}',
+    canc: '{DELETE}', cancella: '{DELETE}', backspace: '{BACKSPACE}', indietro: '{BACKSPACE}',
+    home: '{HOME}', fine: '{END}', pagsu: '{PGUP}', paggiu: '{PGDN}',
+    f1: '{F1}', f2: '{F2}', f3: '{F3}', f4: '{F4}', f5: '{F5}', f6: '{F6}',
+    f7: '{F7}', f8: '{F8}', f9: '{F9}', f10: '{F10}', f11: '{F11}', f12: '{F12}'
+  };
+  const pezzi = String(testo || '').toLowerCase().split(/[+\s]+/).filter(Boolean);
+  let prefisso = '';
+  let tasto = '';
+  for (const p of pezzi) {
+    if (p === 'ctrl' || p === 'control') prefisso += '^';
+    else if (p === 'alt') prefisso += '%';
+    else if (p === 'shift' || p === 'maiusc') prefisso += '+';
+    else if (p === 'win' || p === 'windows') prefisso += '^{ESC}';   // non esiste in SendKeys: si usa Ctrl+Esc
+    else tasto = nomi[p] || (p.length === 1 ? p : '');
+  }
+  if (prefisso === '^{ESC}' && !tasto) return '^{ESC}';
+  return tasto ? prefisso + tasto : '';
+}
+
 /* ----------------------------------------- azioni immediate (sincrone) */
 
 ipcMain.on('pc-subito', (evento, azione, arg) => {
@@ -219,6 +277,20 @@ ipcMain.on('pc-subito', (evento, azione, arg) => {
           new Notification({ title: 'JARVIS', body: String(arg || '') }).show();
         }
         risposta = 'Notifica mostrata.';
+        break;
+
+      case 'in-primo-piano':
+        if (finestra) {
+          if (finestra.isMinimized()) finestra.restore();
+          finestra.show();
+          finestra.focus();
+          // lampeggia nella barra e sta davanti per qualche secondo, poi torna normale:
+          // una chiamata deve farsi notare, ma non restare inchiodata sopra tutto
+          finestra.flashFrame(true);
+          finestra.setAlwaysOnTop(true);
+          setTimeout(() => { try { finestra.setAlwaysOnTop(false); finestra.flashFrame(false); } catch (e) {} }, 8000);
+        }
+        risposta = 'Eccomi.';
         break;
 
       case 'minimizza':
@@ -332,6 +404,154 @@ ipcMain.handle('pc-lento', async (evento, azione, arg) => {
         );
         return out && !out.startsWith('ERRORE') ? ('Rete: ' + out) : 'Non riesco a leggere la rete.';
       }
+      /* ------------------------------------------------ tastiera */
+
+      case 'digita': {
+        const t = String(arg || '');
+        if (!t) return 'Non mi hai detto cosa scrivere.';
+        await powershell('Add-Type -AssemblyName System.Windows.Forms; ' +
+          '[System.Windows.Forms.SendKeys]::SendWait("' + proteggiTasti(t).replace(/"/g, '""') + '")');
+        return 'Scritto: ' + t.slice(0, 60);
+      }
+
+      case 'tasto': {
+        const c = comboTasti(arg);
+        if (!c) return 'Non ho capito quale tasto premere.';
+        await powershell('Add-Type -AssemblyName System.Windows.Forms; ' +
+          '[System.Windows.Forms.SendKeys]::SendWait("' + c.replace(/"/g, '""') + '")');
+        return 'Premuto ' + arg + '.';
+      }
+
+      /* --------------------------------------------------- mouse */
+
+      case 'mouse-muovi': {
+        const m = /(-?\d+)\s*[,; ]\s*(-?\d+)/.exec(String(arg || ''));
+        if (!m) return 'Mi servono due numeri: posizione orizzontale e verticale.';
+        await powershell('Add-Type -AssemblyName System.Windows.Forms; ' +
+          '[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(' + m[1] + ',' + m[2] + ')');
+        return 'Puntatore spostato.';
+      }
+
+      case 'mouse-clic': {
+        const q = String(arg || 'sinistro').toLowerCase();
+        const destro = q.indexOf('destr') >= 0;
+        const doppio = q.indexOf('doppi') >= 0;
+        const giu = destro ? '0x0008' : '0x0002';
+        const su = destro ? '0x0010' : '0x0004';
+        const uno = '[M]::mouse_event(' + giu + ',0,0,0,0); Start-Sleep -m 40; [M]::mouse_event(' + su + ',0,0,0,0);';
+        await powershell(
+          'Add-Type -Name M -Namespace W -MemberDefinition \'[DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, int e);\'; ' +
+          '$t = [W.M]; ' + (doppio ? (uno + ' Start-Sleep -m 90; ' + uno) : uno).replace(/\[M\]/g, '$t')
+        );
+        return (doppio ? 'Doppio clic' : (destro ? 'Clic destro' : 'Clic')) + ' fatto.';
+      }
+
+      case 'mouse-scorri': {
+        const n = parseInt(String(arg || '3'), 10) || 3;
+        await powershell(
+          'Add-Type -Name M -Namespace W -MemberDefinition \'[DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, int d, int e);\'; ' +
+          '[W.M]::mouse_event(0x0800,0,0,' + (n * -120) + ',0)'
+        );
+        return n > 0 ? 'Scorro in basso.' : 'Scorro in alto.';
+      }
+
+      case 'schermo': {
+        const out = await powershell('Add-Type -AssemblyName System.Windows.Forms; ' +
+          '$s = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; "$($s.Width)x$($s.Height)"');
+        return 'Lo schermo e ' + out + ' punti.';
+      }
+
+      /* ------------------------------------------------- finestre */
+
+      case 'finestre': {
+        const out = await powershell(
+          'Get-Process | Where-Object { $_.MainWindowTitle } | ' +
+          'Select-Object -First 15 | ForEach-Object { $_.MainWindowTitle }'
+        );
+        return out && !out.startsWith('ERRORE') ? ('Finestre aperte:\n' + out) : 'Non vedo finestre aperte.';
+      }
+
+      case 'finestra-davanti': {
+        const titolo = String(arg || '').replace(/["`$]/g, '').trim();
+        if (!titolo) return 'Quale finestra?';
+        const out = await powershell(
+          'Add-Type -Name W -Namespace U -MemberDefinition \'[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);\'; ' +
+          '$p = Get-Process | Where-Object { $_.MainWindowTitle -like "*' + titolo + '*" } | Select-Object -First 1; ' +
+          'if ($p) { [U.W]::ShowWindow($p.MainWindowHandle, 9) | Out-Null; [U.W]::SetForegroundWindow($p.MainWindowHandle) | Out-Null; $p.MainWindowTitle } else { "nessuna" }'
+        );
+        return out.indexOf('nessuna') >= 0 ? ('Non trovo una finestra con "' + titolo + '".') : ('Ho portato davanti: ' + out);
+      }
+
+      /* ---------------------------------------------------- file */
+
+      case 'elenca-cartella': {
+        const dir = percorsoUtente(arg || 'documenti');
+        if (!dir) return 'Posso guardare solo dentro le tue cartelle personali.';
+        if (!fs.existsSync(dir)) return 'Quella cartella non esiste.';
+        const voci = fs.readdirSync(dir, { withFileTypes: true }).slice(0, 30);
+        if (!voci.length) return 'La cartella e vuota.';
+        return 'In ' + path.basename(dir) + ':\n' +
+          voci.map(v => (v.isDirectory() ? '[cartella] ' : '') + v.name).join('\n');
+      }
+
+      case 'scrivi-file': {
+        let dati = arg;
+        if (typeof dati === 'string') { try { dati = JSON.parse(dati); } catch (e) { dati = null; } }
+        if (!dati || !dati.percorso) return 'Mi servono il percorso e il contenuto.';
+        const dove = percorsoUtente(dati.percorso);
+        if (!dove) return 'Posso scrivere solo dentro le tue cartelle personali (Documenti, Desktop, Download...).';
+        fs.mkdirSync(path.dirname(dove), { recursive: true });
+        fs.writeFileSync(dove, String(dati.contenuto || ''), 'utf8');
+        return 'Scritto il file ' + path.basename(dove) + ' in ' + path.basename(path.dirname(dove)) + '.';
+      }
+
+      case 'crea-cartella': {
+        const dove = percorsoUtente(arg);
+        if (!dove) return 'Posso creare cartelle solo dentro le tue cartelle personali.';
+        fs.mkdirSync(dove, { recursive: true });
+        return 'Cartella creata: ' + path.basename(dove);
+      }
+
+      case 'rinomina': {
+        let dati = arg;
+        if (typeof dati === 'string') { try { dati = JSON.parse(dati); } catch (e) { dati = null; } }
+        if (!dati || !dati.da || !dati.a) return 'Mi servono il nome vecchio e quello nuovo.';
+        const da = percorsoUtente(dati.da);
+        const a = percorsoUtente(dati.a);
+        if (!da || !a) return 'Posso lavorare solo dentro le tue cartelle personali.';
+        if (!fs.existsSync(da)) return 'Non trovo quel file.';
+        fs.renameSync(da, a);
+        return 'Rinominato in ' + path.basename(a) + '.';
+      }
+
+      case 'copia-file': {
+        let dati = arg;
+        if (typeof dati === 'string') { try { dati = JSON.parse(dati); } catch (e) { dati = null; } }
+        if (!dati || !dati.da || !dati.a) return 'Mi servono il file di partenza e la destinazione.';
+        const da = percorsoUtente(dati.da);
+        const a = percorsoUtente(dati.a);
+        if (!da || !a) return 'Posso lavorare solo dentro le tue cartelle personali.';
+        if (!fs.existsSync(da)) return 'Non trovo quel file.';
+        fs.mkdirSync(path.dirname(a), { recursive: true });
+        fs.copyFileSync(da, a);
+        return 'Copiato in ' + path.basename(a) + '.';
+      }
+
+      case 'cestina': {
+        const p2 = percorsoUtente(arg);
+        if (!p2) return 'Posso cestinare solo dentro le tue cartelle personali.';
+        if (!fs.existsSync(p2)) return 'Non trovo quel file.';
+        // nel cestino, non cancellato per sempre: un ripensamento deve restare possibile
+        const out = await powershell(
+          'Add-Type -AssemblyName Microsoft.VisualBasic; ' +
+          '[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("' + p2.replace(/\\/g, '\\\\') + '", ' +
+          '"OnlyErrorDialogs", "SendToRecycleBin"); "fatto"'
+        );
+        return out.indexOf('fatto') >= 0
+          ? ('Ho spostato ' + path.basename(p2) + ' nel cestino. Da li puoi ancora recuperarlo.')
+          : 'Non sono riuscito a cestinarlo.';
+      }
+
     }
   } catch (e) {
     return 'Non ci sono riuscito: ' + e.message;
