@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>JARVIS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#04070e">
+<meta name="description" content="Jarvis by Ariosto Prudenziano">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jarvis">
+<style>
+  :root{
+    --sfondo:#04070e; --pannello:#101c2e; --testo:#e7eef9; --tenue:#8c9db9;
+    --acc:#38d3e8; --accScuro:#04222a;
+    --alto: env(safe-area-inset-top); --basso: env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--sfondo);color:var(--testo);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  body{display:flex;flex-direction:column;padding:var(--alto) 0 var(--basso)}
+
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px 6px;flex:0 0 auto}
+  header h1{font-size:15px;margin:0;color:var(--acc);letter-spacing:.4px;font-weight:700;line-height:1.15}
+  header .stato{font-size:11px;color:var(--tenue);margin-top:2px}
+  header .sx{flex:1;min-width:0}
+  button{font:inherit;border:0;border-radius:10px;background:var(--acc);color:var(--accScuro);
+    padding:9px 13px;font-size:13px;font-weight:600}
+  button:active{opacity:.75}
+  button.vuoto{background:transparent;color:var(--acc);border:1px solid rgba(56,211,232,.45)}
+
+  #scena{flex:1 1 auto;position:relative;min-height:0}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;pointer-events:none}
+  #video.vedi{opacity:.55}
+  #didascalia{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:12px;color:var(--tenue)}
+
+  #log{flex:0 0 32%;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:0 12px;
+    background:var(--pannello);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.45}
+  #log p{margin:0 0 9px}
+  #log .io{color:var(--tenue)}
+  #log .lui{color:var(--testo)}
+  #log .sys{color:var(--acc);font-size:12px}
+
+  #barra{flex:0 0 auto;display:flex;gap:6px;align-items:center;padding:8px 12px 10px}
+  #testo{flex:1;min-width:0;background:var(--pannello);color:var(--testo);border:0;border-radius:10px;
+    padding:11px 12px;font-size:15px;max-height:92px}
+  #testo::placeholder{color:var(--tenue)}
+  .tondo{width:46px;padding:11px 0;text-align:center;font-size:17px}
+
+  #chip{display:none;margin:0 12px 6px;padding:6px 10px;background:var(--pannello);border-radius:10px;
+    font-size:12px;color:var(--acc);align-self:flex-start}
+
+  #impostazioni{position:absolute;inset:0;background:var(--sfondo);overflow-y:auto;padding:16px;display:none;z-index:50}
+  #impostazioni.vedi{display:block}
+  #impostazioni h2{font-size:15px;color:var(--acc);margin:18px 0 8px}
+  #impostazioni label{display:block;font-size:12px;color:var(--tenue);margin:10px 0 4px}
+  #impostazioni input[type=text],#impostazioni input[type=password],#impostazioni textarea{
+    width:100%;background:var(--pannello);color:var(--testo);border:0;border-radius:9px;padding:10px;font-size:14px}
+  #impostazioni .riga{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  #impostazioni p.nota{font-size:12px;color:var(--tenue);line-height:1.5}
+  .checkbox{display:flex;gap:9px;align-items:flex-start;margin-top:12px;font-size:13px;color:var(--testo)}
+  .checkbox input{margin-top:2px;width:18px;height:18px;accent-color:var(--acc)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="sx">
+    <h1>JARVIS BY ARIOSTO PRUDENZIANO</h1>
+    <div class="stato" id="stato">avvio...</div>
+  </div>
+  <button id="btnImp">Impostazioni</button>
+</header>
+
+<div id="scena">
+  <video id="video" playsinline muted autoplay></video>
+  <canvas id="tela"></canvas>
+  <div id="didascalia">In ascolto</div>
+</div>
+
+<div id="chip"></div>
+<div id="log"></div>
+
+<div id="barra">
+  <button class="tondo vuoto" id="btnFile" title="Allega">📎</button>
+  <button class="tondo vuoto" id="btnVoce" title="Parla">🎤</button>
+  <textarea id="testo" rows="1" placeholder="Scrivi a Jarvis..."></textarea>
+  <button id="btnInvia">Invia</button>
+  <button class="vuoto" id="btnFerma">Ferma</button>
+</div>
+
+<input type="file" id="file" style="display:none">
+
+<div id="impostazioni">
+  <div style="display:flex;align-items:center;gap:10px">
+    <h2 style="flex:1;margin:0">Impostazioni</h2>
+    <button id="btnChiudi">Chiudi</button>
+  </div>
+
+  <label>Chiave API Groq (gratuita su console.groq.com)</label>
+  <input type="password" id="chiave" placeholder="gsk_...">
+  <label>Seconda chiave di riserva (facoltativa)</label>
+  <input type="password" id="chiave2" placeholder="gsk_...">
+  <label>Come ti chiama Jarvis</label>
+  <input type="text" id="nome" placeholder="signore">
+  <label>Chi sei e di cosa ti occupi</label>
+  <textarea id="chisei" rows="2"></textarea>
+  <label>Carattere di Jarvis</label>
+  <input type="text" id="carattere" placeholder="es. ironico, formale da maggiordomo">
+
+  <div class="checkbox"><input type="checkbox" id="vocale" checked><span>Leggi le risposte ad alta voce</span></div>
+  <div class="checkbox"><input type="checkbox" id="memoria" checked><span>Ricorda le conversazioni su questo dispositivo</span></div>
+
+  <h2>Strumenti</h2>
+  <div class="riga">
+    <button id="btnOcchi">Occhi (fotocamera)</button>
+    <button id="btnMano" class="vuoto">Controllo con la mano</button>
+    <button id="btnSpegniCam" class="vuoto">Spegni fotocamera</button>
+  </div>
+  <div class="riga">
+    <button id="btnSvuota" class="vuoto">Cancella la memoria</button>
+    <button id="btnProva" class="vuoto">Prova la voce</button>
+  </div>
+
+  <h2>Installa sul telefono</h2>
+  <p class="nota">
+    Su <b>iPhone e iPad</b>: apri questa pagina con <b>Safari</b>, tocca il tasto Condividi
+    (il quadrato con la freccia in su) e scegli <b>Aggiungi alla schermata Home</b>.
+    Da quel momento Jarvis si apre a schermo intero come un'app vera, anche senza connessione
+    per la parte grafica e i calcoli.
+  </p>
+  <p class="nota">
+    La chiave API resta <b>solo su questo dispositivo</b>, nella memoria del browser.
+    Non viene mai inviata a nessuno tranne che a Groq.
+  </p>
+  <p class="nota" id="versione"></p>
+</div>
+
+<script>
+"use strict";
+
+/* ====================================================================
+   JARVIS per iPhone e iPad - applicazione web installabile
+   Tutto gira nel browser: nessun server, nessun intermediario.
+   ==================================================================== */
+
+const $ = (id) => document.getElementById(id);
+const M = {                      // le impostazioni, salvate sul dispositivo
+  get(k, d){ try { const v = localStorage.getItem('j_'+k); return v===null?d:v; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem('j_'+k, v); } catch(e){} },
+  getB(k, d){ const v=this.get(k,null); return v===null?d:v==='1'; },
+  setB(k, v){ this.set(k, v?'1':'0'); }
+};
+
+/* ------------------------------------------------- registro a schermo */
+function scrivi(chi, testo){
+  const p = document.createElement('p');
+  p.className = chi==='tu' ? 'io' : (chi==='sys' ? 'sys' : 'lui');
+  p.textContent = (chi==='tu' ? 'TU: ' : chi==='sys' ? '' : 'JARVIS: ') + testo;
+  $('log').appendChild(p);
+  $('log').scrollTop = $('log').scrollHeight;
+  while ($('log').children.length > 120) $('log').removeChild($('log').firstChild);
+}
+function stato(t){ $('stato').textContent = t; }
+function didascalia(t){ $('didascalia').textContent = t; }
+
+/* ====================================================================
+   1. LABORATORIO: i calcoli sono esatti, fatti qui e non dal modello
+   ==================================================================== */
+const Ing = (() => {
+
+  function num(v, c=4){
+    if (!isFinite(v)) return 'non definito';
+    const a = Math.abs(v);
+    if (a!==0 && (a<1e-3 || a>=1e7)) return v.toExponential(c);
+    return parseFloat(v.toFixed(c)).toLocaleString('it-IT', {maximumFractionDigits:c});
+  }
+
+  /* analizzatore di espressioni: niente eval, niente sorprese */
+  function calcola(src){
+    let s = String(src).trim()
+      .replace(/×/g,'*').replace(/·/g,'*').replace(/÷/g,'/').replace(/−/g,'-')
+      .replace(/\s+per\s+/g,'*').replace(/\s+diviso\s+/g,'/')
+      .replace(/\s+piu\s+/g,'+').replace(/\s+più\s+/g,'+').replace(/\s+meno\s+/g,'-');
+    let i = 0;
+    /* Dentro gli argomenti di una funzione la virgola separa i valori,
+       fuori e il separatore decimale all'italiana: ipotenusa(3,4) sono due numeri,
+       mentre 1,5*2 e un numero solo. */
+    let dentroArgs = 0;
+    const salta = () => { while (i<s.length && s[i]===' ') i++; };
+    const mangia = (c) => { salta(); if (s[i]===c){ i++; return true; } return false; };
+
+    function espr(){ let v = term(); for(;;){ if (mangia('+')) v+=term(); else if (mangia('-')) v-=term(); else return v; } }
+    function term(){ let v = pot(); for(;;){
+        if (mangia('*')) v*=pot();
+        else if (mangia('/')){ const d=pot(); if (d===0) throw new Error('divisione per zero'); v/=d; }
+        else if (mangia('%')) v%=pot();
+        else return v; } }
+    function pot(){ const b = unario(); if (mangia('^')) return Math.pow(b, pot()); return b; }
+    function unario(){ if (mangia('-')) return -unario(); if (mangia('+')) return unario(); return atomo(); }
+    function atomo(){
+      salta();
+      if (mangia('(')){ const v = espr(); if (!mangia(')')) throw new Error('manca una parentesi'); return v; }
+      const c = s[i];
+      if (c>='0'&&c<='9' || c==='.' || c===','){
+        const t0=i;
+        while (i<s.length && (/[0-9]/.test(s[i]) || s[i]==='.' || (s[i]===',' && dentroArgs===0))) i++;
+        if (s[i]==='e'||s[i]==='E'){ const sv=i; i++; if(s[i]==='+'||s[i]==='-')i++; if(/[0-9]/.test(s[i])){while(/[0-9]/.test(s[i]))i++;} else i=sv; }
+        const n = parseFloat(s.slice(t0,i).replace(',', '.'));
+        if (isNaN(n)) throw new Error('numero non valido');
+        return n;
+      }
+      if (/[a-zA-Z]/.test(c)){
+        const t0=i; while (i<s.length && /[a-zA-Z0-9_]/.test(s[i])) i++;
+        const nome = s.slice(t0,i).toLowerCase();
+        salta();
+        if (s[i]==='('){
+          i++; const args=[];
+          dentroArgs++;
+          try {
+            if (!mangia(')')){ do { args.push(espr()); } while (mangia(',')); if (!mangia(')')) throw new Error('manca una parentesi'); }
+          } finally { dentroArgs--; }
+          return fun(nome,args);
+        }
+        if (nome==='pi'||nome==='pigreco') return Math.PI;
+        if (nome==='e') return Math.E;
+        if (nome==='g') return 9.80665;
+        throw new Error('non conosco "'+nome+'"');
+      }
+      throw new Error('espressione incompleta');
+    }
+    function fun(n,a){
+      const u = () => { if (a.length!==1) throw new Error(n+' vuole un solo valore'); return a[0]; };
+      switch(n){
+        case 'sin': return Math.sin(u()); case 'cos': return Math.cos(u()); case 'tan': return Math.tan(u());
+        case 'asin': return Math.asin(u()); case 'acos': return Math.acos(u()); case 'atan': return Math.atan(u());
+        case 'sind': return Math.sin(u()*Math.PI/180); case 'cosd': return Math.cos(u()*Math.PI/180);
+        case 'sqrt': case 'radice': { const v=u(); if (v<0) throw new Error('radice di un negativo'); return Math.sqrt(v); }
+        case 'ln': return Math.log(u()); case 'log': case 'log10': return Math.log10(u()); case 'exp': return Math.exp(u());
+        case 'abs': return Math.abs(u()); case 'round': case 'arrotonda': return Math.round(u());
+        case 'floor': return Math.floor(u()); case 'ceil': return Math.ceil(u());
+        case 'rad': return u()*Math.PI/180; case 'gradi': case 'deg': return u()*180/Math.PI;
+        case 'min': return Math.min.apply(null,a); case 'max': return Math.max.apply(null,a);
+        case 'media': return a.reduce((x,y)=>x+y,0)/a.length;
+        case 'somma': return a.reduce((x,y)=>x+y,0);
+        case 'pow': return Math.pow(a[0],a[1]);
+        case 'ipotenusa': return Math.sqrt(a[0]*a[0]+a[1]*a[1]);
+        default: throw new Error('funzione sconosciuta: '+n);
+      }
+    }
+    const v = espr(); salta();
+    if (i < s.length) throw new Error('non capisco "'+s[i]+'"');
+    return num(v,6);
+  }
+
+  /* materiali con valori reali */
+  const materiali = [
+    ['acciaio s235',7850,210,235,360,50,12,'carpenteria, economico e saldabile'],
+    ['acciaio s355',7850,210,355,510,45,12,'strutturale ad alta resistenza'],
+    ['acciaio inox 304',8000,193,215,505,16,17.3,'resiste alla corrosione'],
+    ['acciaio inox 316',8000,193,290,580,16.3,16,'marino, resiste ai cloruri'],
+    ['alluminio 6061',2700,69,276,310,167,23.6,'leggero e lavorabile'],
+    ['alluminio 7075',2810,71.7,503,572,130,23.4,'aeronautico, molto resistente'],
+    ['titanio ti-6al-4v',4430,113.8,880,950,6.7,8.6,'resistenza/peso eccellente, costoso'],
+    ['magnesio az31',1770,45,200,260,96,26,'il metallo strutturale piu leggero'],
+    ['rame',8960,117,70,220,401,16.5,'conduttore eccellente'],
+    ['ottone',8500,100,200,400,109,19,'lavorabile, resiste alla corrosione'],
+    ['ghisa grigia',7200,110,150,250,50,10.5,'fragile a trazione, ottima a compressione'],
+    ['calcestruzzo c25/30',2400,31,25,2.6,1.7,10,'va armato'],
+    ['legno abete',450,11,24,40,0.13,5,'leggero, valori lungo la fibra'],
+    ['pla',1240,3.5,50,60,0.13,68,'stampa 3D facile, fragile al calore'],
+    ['abs',1040,2.3,40,45,0.17,90,'stampa 3D tenace'],
+    ['petg',1270,2.1,50,53,0.29,60,'tenace e resistente all\'umidita'],
+    ['nylon pa12',1010,1.6,45,50,0.25,100,'resistente all\'usura'],
+    ['policarbonato',1200,2.4,62,70,0.20,65,'altissima resistenza all\'urto'],
+    ['fibra di carbonio',1600,135,1500,1600,7,2,'valori lungo la fibra'],
+    ['fibra di vetro',1900,25,300,350,0.35,9,'economica, piu pesante del carbonio'],
+    ['aramide',1440,83,2800,3000,0.04,-3.5,'ottima contro gli urti'],
+    ['piombo',11340,16,12,18,35,29,'molto denso, schermatura']
+  ].map(m=>({nome:m[0],densita:m[1],E:m[2],snerv:m[3],rott:m[4],cond:m[5],dil:m[6],nota:m[7]}));
+
+  function trova(n){
+    const q = String(n).toLowerCase().trim();
+    if (!q) return null;
+    return materiali.find(m=>m.nome===q) || materiali.find(m=>m.nome.includes(q)) ||
+           materiali.find(m=>q.split(' ').some(w=>w.length>3 && m.nome.includes(w)));
+  }
+
+  function scheda(n){
+    const m = trova(n);
+    if (!m) return 'Non ho questo materiale. Disponibili: ' + materiali.map(x=>x.nome).join(', ');
+    return 'MATERIALE: '+m.nome.toUpperCase()+
+      '\nDensita: '+num(m.densita,0)+' kg/m3'+
+      '\nModulo elastico E: '+num(m.E,1)+' GPa'+
+      '\nSnervamento: '+num(m.snerv,0)+' MPa'+
+      '\nRottura: '+num(m.rott,0)+' MPa'+
+      '\nConducibilita termica: '+num(m.cond,2)+' W/(m K)'+
+      '\nDilatazione: '+num(m.dil,1)+' micron/(m K)'+
+      '\nNota: '+m.nota;
+  }
+
+  function confronta(lista){
+    const t = lista.map(trova).filter(Boolean);
+    if (t.length<2) return 'Servono almeno due materiali riconosciuti.';
+    let s = 'CONFRONTO MATERIALI\n';
+    t.forEach(m=>{
+      s += '\n'+m.nome.toUpperCase()+'\n  densita '+num(m.densita,0)+' kg/m3 | E '+num(m.E,0)+
+           ' GPa | snervamento '+num(m.snerv,0)+' MPa\n  resistenza specifica: '+
+           num(m.snerv/(m.densita/1000),1)+'\n  '+m.nota+'\n';
+    });
+    const leg = t.reduce((a,b)=>a.densita<b.densita?a:b);
+    const fo  = t.reduce((a,b)=>a.snerv>b.snerv?a:b);
+    const ef  = t.reduce((a,b)=>(a.snerv/a.densita)>(b.snerv/b.densita)?a:b);
+    s += '\nPiu leggero: '+leg.nome+'. Piu resistente: '+fo.nome+'. Miglior rapporto resistenza/peso: '+ef.nome+'.';
+    return s;
+  }
+
+  /* massa molare da formula chimica */
+  const PA = {H:1.008,He:4.0026,Li:6.94,Be:9.0122,B:10.81,C:12.011,N:14.007,O:15.999,F:18.998,Ne:20.18,
+    Na:22.99,Mg:24.305,Al:26.982,Si:28.085,P:30.974,S:32.06,Cl:35.45,Ar:39.948,K:39.098,Ca:40.078,
+    Ti:47.867,V:50.942,Cr:51.996,Mn:54.938,Fe:55.845,Co:58.933,Ni:58.693,Cu:63.546,Zn:65.38,
+    Ga:69.723,Ge:72.63,As:74.922,Se:78.971,Br:79.904,Ag:107.87,Cd:112.41,Sn:118.71,Sb:121.76,
+    I:126.9,Ba:137.33,Pt:195.08,Au:196.97,Hg:200.59,Pb:207.2,Bi:208.98,U:238.03};
+
+  function massaMolare(f){
+    const pulita = String(f).replace(/\s|·|\*/g,'.');
+    if (!pulita) return 'Dimmi una formula chimica.';
+    const conti = {};
+    function parse(str, molt){
+      let i=0, tot=0;
+      while (i<str.length){
+        const c = str[i];
+        if (c==='('||c==='['){
+          let liv=1, j=i+1;
+          while (j<str.length && liv>0){ if(str[j]==='('||str[j]==='[')liv++; if(str[j]===')'||str[j]===']')liv--; j++; }
+          const dentro = str.slice(i+1, j-1);
+          let k=j; while (k<str.length && /[0-9]/.test(str[k])) k++;
+          const n = k>j ? parseFloat(str.slice(j,k)) : 1;
+          tot += parse(dentro, molt*n); i=k;
+        } else if (/[A-Z]/.test(c)){
+          let j=i+1; if (j<str.length && /[a-z]/.test(str[j])) j++;
+          const el = str.slice(i,j);
+          let k=j; while (k<str.length && /[0-9.]/.test(str[k])) k++;
+          const n = k>j ? parseFloat(str.slice(j,k)) : 1;
+          if (!PA[el]) throw new Error('elemento sconosciuto: '+el);
+          conti[el] = (conti[el]||0) + n*molt;
+          tot += PA[el]*n*molt; i=k;
+        } else throw new Error('carattere non valido: '+c);
+      }
+      return tot;
+    }
+    try {
+      let tot = 0;
+      pulita.split('.').forEach(parte=>{
+        if (!parte) return;
+        let molt=1, p=parte;
+        const pre = p.match(/^(\d+)/);
+        if (pre){ molt=parseFloat(pre[1]); p=p.slice(pre[1].length); }
+        tot += parse(p, molt);
+      });
+      let s = 'MASSA MOLARE di '+f+'\nTotale: '+num(tot,4)+' g/mol\n\nComposizione:\n';
+      Object.keys(conti).sort((a,b)=>PA[b]*conti[b]-PA[a]*conti[a]).forEach(el=>{
+        const m = PA[el]*conti[el];
+        s += '  '+el+' x'+num(conti[el],2)+'  '+num(m,3)+' g/mol ('+num(m/tot*100,2)+'%)\n';
+      });
+      return s.trim();
+    } catch(e){ return 'Non riesco a leggere questa formula: '+e.message; }
+  }
+
+  /* statistica e regressione */
+  function dati(testo){
+    const n = (String(testo).match(/-?\d+(?:[.,]\d+)?/g)||[]).map(x=>parseFloat(x.replace(',','.')));
+    if (n.length<2) return 'Servono almeno due numeri.';
+    const media = n.reduce((a,b)=>a+b,0)/n.length;
+    const ord = n.slice().sort((a,b)=>a-b);
+    const med = n.length%2 ? ord[(n.length-1)/2] : (ord[n.length/2-1]+ord[n.length/2])/2;
+    const varz = n.reduce((a,b)=>a+(b-media)*(b-media),0)/Math.max(1,n.length-1);
+    const sd = Math.sqrt(varz);
+    let s = 'ANALISI DATI ('+n.length+' valori)\nMedia: '+num(media,4)+'\nMediana: '+num(med,4)+
+      '\nDeviazione standard: '+num(sd,4)+
+      '\nMinimo: '+num(ord[0],4)+' | Massimo: '+num(ord[ord.length-1],4)+
+      '\nIncertezza sulla media: '+num(sd/Math.sqrt(n.length),4);
+    const anom = n.filter(v=>Math.abs(v-media)>2*sd);
+    if (anom.length && sd>0) s += '\nValori anomali (oltre 2 sigma): '+anom.map(v=>num(v,3)).join(', ');
+    /* regressione se ci sono coppie su righe diverse */
+    const coppie=[];
+    String(testo).split(/[\n;]/).forEach(r=>{
+      const v=(r.match(/-?\d+(?:[.,]\d+)?/g)||[]).map(x=>parseFloat(x.replace(',','.')));
+      if (v.length>=2) coppie.push([v[0],v[1]]);
+    });
+    if (coppie.length>=3){
+      const m=coppie.length;
+      const sx=coppie.reduce((a,c)=>a+c[0],0), sy=coppie.reduce((a,c)=>a+c[1],0);
+      const sxy=coppie.reduce((a,c)=>a+c[0]*c[1],0), sxx=coppie.reduce((a,c)=>a+c[0]*c[0],0);
+      const den=m*sxx-sx*sx;
+      if (Math.abs(den)>1e-12){
+        const p=(m*sxy-sx*sy)/den, q=(sy-p*sx)/m, my=sy/m;
+        const sst=coppie.reduce((a,c)=>a+(c[1]-my)*(c[1]-my),0);
+        const ssr=coppie.reduce((a,c)=>{const pr=p*c[0]+q; return a+(c[1]-pr)*(c[1]-pr);},0);
+        const r2 = sst>0 ? 1-ssr/sst : 1;
+        s += '\n\nREGRESSIONE LINEARE su '+m+' coppie\ny = '+num(p,5)+' x + '+num(q,5)+'\nR quadro: '+num(r2,4);
+      }
+    }
+    return s;
+  }
+
+  /* trave: freccia, tensione, sicurezza */
+  function trave(vincolo, carico, luce, tipo, a, b, mat){
+    const m = trova(mat); if (!m) return 'Materiale non riconosciuto.';
+    let area, I, dist;
+    const t = String(tipo).toLowerCase();
+    if (t.includes('rett')||t.includes('quad')){ area=a*b; I=a*b*b*b/12; dist=b/2; }
+    else if (t.includes('tubo')){ area=Math.PI*(a*a-b*b)/4; I=Math.PI*(Math.pow(a,4)-Math.pow(b,4))/64; dist=a/2; }
+    else if (t.includes('tond')||t.includes('cerchio')){ area=Math.PI*a*a/4; I=Math.PI*Math.pow(a,4)/64; dist=a/2; }
+    else return 'Sezione non riconosciuta: rettangolare, tonda o tubo.';
+    const E = m.E*1000;
+    const v = String(vincolo).toLowerCase();
+    const distr = v.includes('distribu'), mens = v.includes('mensola')||v.includes('sbalzo');
+    let M, f, descr;
+    if (mens && distr){ M=carico*luce*luce/2; f=carico*Math.pow(luce,4)/(8*E*I); descr='mensola, carico distribuito'; }
+    else if (mens){ M=carico*luce; f=carico*Math.pow(luce,3)/(3*E*I); descr='mensola, carico in punta'; }
+    else if (distr){ M=carico*luce*luce/8; f=5*carico*Math.pow(luce,4)/(384*E*I); descr='appoggiata, carico distribuito'; }
+    else { M=carico*luce/4; f=carico*Math.pow(luce,3)/(48*E*I); descr='appoggiata, carico in mezzeria'; }
+    const sigma = M*dist/I, sic = m.snerv/sigma, peso = area*luce*m.densita/1e9, lim = luce/250;
+    let esito;
+    if (sic<1) esito='NON VERIFICATA: la tensione supera lo snervamento.';
+    else if (sic<1.5) esito='AL LIMITE: sicurezza '+num(sic,2)+', sotto il valore usuale di 1,5.';
+    else if (f>lim) esito='Resistenza ok ma la freccia supera L/250: rigidezza insufficiente.';
+    else esito='VERIFICATA: sicurezza '+num(sic,2)+' e freccia entro il limite.';
+    return 'CALCOLO TRAVE ('+descr+')\nMateriale: '+m.nome+' | E = '+num(m.E,0)+' GPa'+
+      '\nMomento massimo: '+num(M/1000,1)+' N*m'+
+      '\nTensione massima: '+num(sigma,1)+' MPa (snervamento '+num(m.snerv,0)+')'+
+      '\nCoefficiente di sicurezza: '+num(sic,2)+
+      '\nFreccia: '+num(f,2)+' mm (limite L/250 = '+num(lim,2)+' mm)'+
+      '\nPeso: '+num(peso,2)+' kg\n\n'+esito+
+      '\n\nNota: predimensionamento elastico. Per un\'opera reale serve un tecnico abilitato.';
+  }
+
+  return {calcola,scheda,confronta,massaMolare,dati,trave,num,materiali};
+})();
+
+/* ====================================================================
+   2. COMANDI ISTANTANEI: risposta immediata, senza rete e senza quota
+   ==================================================================== */
+function istantaneo(frase){
+  const t = frase.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9:.,\/()^*+\-\s]/g,' ').replace(/\s+/g,' ').trim();
+  if (!t) return null;
+  if (/\b(spiegam\w*|come funziona|come si (fa|imposta|usa)|perche|secondo te)\b/.test(t)) return null;
+
+  if (/^(che ore sono|che ora e|dimmi l ora)\b/.test(t))
+    return 'Sono le ' + new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}) + '.';
+  if (/^(che giorno e|che data e)/.test(t))
+    return 'Oggi e ' + new Date().toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'}) + '.';
+
+  let m = t.match(/^(?:quanto (?:fa|e)|calcola|quanto fanno)\s+(.+)/);
+  if (m && /[0-9]/.test(m[1])){
+    try { return m[1] + ' = ' + Ing.calcola(m[1]); } catch(e){ return null; }
+  }
+  m = t.match(/(?:scheda|proprieta|dati|caratteristiche)\s+(?:del\s+|della\s+)?(?:materiale\s+)?(.+)/);
+  if (m && Ing.materiali.some(x=>x.nome.includes(m[1].trim().split(' ')[0]))) return Ing.scheda(m[1]);
+  m = t.match(/confronta\s+(.+)/);
+  if (m && m[1].includes(' e ')) return Ing.confronta(m[1].split(/\s+e\s+|,/));
+  m = frase.match(/massa molare (?:di |del |della )?(.+)/i);
+  if (m) return Ing.massaMolare(m[1].trim());
+  return null;
+}
+
+/* ====================================================================
+   3. IL CERVELLO: chiamata diretta a Groq dal browser
+   ==================================================================== */
+const Cervello = (() => {
+  const URL_CHAT = 'https://api.groq.com/openai/v1/chat/completions';
+  const MODELLI = ['llama-3.3-70b-versatile','llama-3.1-8b-instant','openai/gpt-oss-120b'];
+
+  function chiavi(){
+    return [M.get('chiave',''), M.get('chiave2','')].filter(k=>k && k.startsWith('gsk_'));
+  }
+
+  function sistema(){
+    const nome = M.get('nome','signore') || 'signore';
+    const chisei = M.get('chisei','');
+    const car = M.get('carattere','');
+    const ora = new Date().toLocaleString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    return 'Sei Jarvis, l\'assistente personale dell\'utente, che chiami "'+nome+'". Parli italiano. ' +
+      (car ? 'Il tuo carattere: '+car+'. ' : 'Hai un tono sicuro, cortese e un po\' britannico. ') +
+      'La tua risposta viene letta ad alta voce: massimo 3 frasi brevi, niente elenchi puntati, niente markdown, niente indirizzi web. ' +
+      'Non inventare MAI fatti, numeri o dati: se non sai, dillo. Per i calcoli esatti l\'utente ha un laboratorio dedicato: ' +
+      'se chiede un conto, invitalo a scrivere "quanto fa ..." che viene risolto con precisione. ' +
+      'Puoi cercare sul web quando serve. Non controlli il telefono ne le altre app: su questo sii onesto invece di fingere.' +
+      '\nData e ora: '+ora + (chisei ? '\nChi e l\'utente: '+chisei : '');
+  }
+
+  function storia(){
+    if (!M.getB('memoria',true)) return [];
+    try { return JSON.parse(M.get('storia','[]')).slice(-8); } catch(e){ return []; }
+  }
+  function ricorda(d, r){
+    if (!M.getB('memoria',true)) return;
+    let s = storia();
+    s.push({role:'user',content:d}, {role:'assistant',content:r});
+    M.set('storia', JSON.stringify(s.slice(-16)));
+  }
+
+  async function post(corpo, chiave){
+    const risp = await fetch(URL_CHAT, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+chiave},
+      body: JSON.stringify(corpo)
+    });
+    if (!risp.ok){
+      const txt = await risp.text();
+      const err = new Error(txt); err.code = risp.status; throw err;
+    }
+    return risp.json();
+  }
+
+  /* Vero se la domanda riguarda fatti che cambiano nel tempo: serve cercare. */
+  function serveRicerca(t){
+    return /\b(cerca|cercami|ricerca|trova|notizie|meteo|che tempo|previsioni|prezzo|quanto costa|quotazione|borsa|oggi|adesso|ultime|ultimo|novita|novità|chi e |chi è |chi era|cosa e successo|risultat\w+|classifica|orari|quando esce|aggiornament\w+|nel 202\d)\b/i.test(t);
+  }
+
+  /**
+   * La ricerca la fa Groq sui suoi server, non il browser.
+   * Nel browser una pagina non puo scaricare da altri siti (il blocco CORS),
+   * ma possiamo chiedere a Groq di cercare per noi e restituirci il risultato.
+   */
+  async function cercaWeb(domanda){
+    const ks = chiavi();
+    const sys = 'Sei il ricercatore di Jarvis. Cerca sul web e rispondi in italiano con i dati concreti che trovi. ' +
+      'Massimo 4 frasi, nessun elenco puntato, nessun indirizzo web, niente markdown. ' +
+      'Se non trovi nulla di affidabile dillo chiaramente invece di inventare.';
+    for (const k of ks){
+      for (const mod of ['openai/gpt-oss-120b','openai/gpt-oss-20b']){
+        try {
+          const j = await post({
+            model: mod,
+            messages: [{role:'system',content:sys},{role:'user',content:domanda}],
+            tools: [{type:'browser_search'}],
+            tool_choice: 'required',
+            temperature: 0.3
+          }, k);
+          let r = (j.choices && j.choices[0] && j.choices[0].message.content || '').trim();
+          r = r.replace(/【[^】]*】/g,'').replace(/\[\d+\]/g,'').trim();   // via i riferimenti
+          if (r) return r;
+        } catch(e){
+          if (e.code===401 || e.code===403) break;
+        }
+      }
+    }
+    return null;
+  }
+
+  async function chiedi(testo){
+    const ks = chiavi();
+    if (!ks.length) return 'Serve la chiave di Groq: aprila in Impostazioni. Si crea gratis su console.groq.com.';
+
+    /* domande su fatti attuali: prima si cerca davvero */
+    if (serveRicerca(testo)){
+      const trovato = await cercaWeb(testo);
+      if (trovato){ ricorda(testo, trovato); return trovato; }
+      // la ricerca non e disponibile: si prosegue, ma senza fingere di sapere
+    }
+
+    const extra = serveRicerca(testo)
+      ? '\nATTENZIONE: la ricerca sul web non e riuscita. Di\' con onestà che non sei riuscito a cercare e che quindi non puoi garantire dati aggiornati. NON inventare notizie, prezzi, meteo o risultati.'
+      : '';
+    const msgs = [{role:'system',content:sistema()+extra}, ...storia(), {role:'user',content:testo}];
+    let ultimo = null;
+    for (const k of ks){
+      for (const mod of MODELLI){
+        try {
+          const j = await post({model:mod, messages:msgs, temperature:0.5, max_tokens:700}, k);
+          const r = (j.choices && j.choices[0] && j.choices[0].message.content || '').trim();
+          if (r){ ricorda(testo, r); return r; }
+        } catch(e){
+          ultimo = e;
+          if (e.code===401 || e.code===403) break;       // chiave rifiutata: passa all'altra
+          // 429 limite, 404 modello ritirato, 503 sovraccarico: prova il modello successivo
+        }
+      }
+    }
+    if (ultimo && ultimo.code===429) return 'Ho raggiunto il limite gratuito di Groq. Riprova fra qualche minuto.';
+    if (ultimo && (ultimo.code===401||ultimo.code===403)) return 'La chiave non viene accettata: controllala in Impostazioni.';
+    return 'Non riesco a raggiungere Groq: controlla la connessione.';
+  }
+
+  /* trascrizione audio con Whisper */
+  async function trascrivi(blob){
+    const ks = chiavi();
+    if (!ks.length) return null;
+    for (const k of ks){
+      for (const mod of ['whisper-large-v3-turbo','whisper-large-v3']){
+        try {
+          const fd = new FormData();
+          fd.append('file', blob, 'audio.m4a');
+          fd.append('model', mod);
+          fd.append('language', 'it');
+          fd.append('response_format', 'text');
+          const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method:'POST', headers:{'Authorization':'Bearer '+k}, body: fd});
+          if (r.ok) return (await r.text()).trim();
+          if (r.status===401||r.status===403) break;
+        } catch(e){}
+      }
+    }
+    return null;
+  }
+
+  /* visione: cosa c'e in questa immagine */
+  async function vedi(dataUrl, domanda){
+    const ks = chiavi();
+    if (!ks.length) return 'Serve la chiave di Groq.';
+    const contenuto = [
+      {type:'text', text: (domanda||'Descrivi cosa c\'e in questa immagine.') + ' Rispondi in italiano, breve.'},
+      {type:'image_url', image_url:{url:dataUrl}}
+    ];
+    for (const k of ks){
+      for (const mod of ['qwen/qwen3.8-27b','meta-llama/llama-4-scout-17b-16e-instruct']){
+        try {
+          const j = await post({model:mod, messages:[{role:'user',content:contenuto}], temperature:0.2}, k);
+          const r = (j.choices && j.choices[0] && j.choices[0].message.content || '').trim();
+          if (r) return r;
+        } catch(e){ if (e.code===401||e.code===403) break; }
+      }
+    }
+    return 'Il modello che vede le immagini non e disponibile adesso. Riprova fra poco.';
+  }
+
+  return {chiedi, trascrivi, vedi, svuota: ()=>M.set('storia','[]')};
+})();
+
+/* ====================================================================
+   4. VOCE
+   ==================================================================== */
+const Voce = (() => {
+  let sbloccata = false, vocePref = null;
+
+  function scegli(){
+    const vs = speechSynthesis.getVoices().filter(v=>v.lang && v.lang.toLowerCase().startsWith('it'));
+    vocePref = vs.find(v=>/alice|federica|luca|paolo/i.test(v.name)) || vs[0] || null;
+  }
+  if ('speechSynthesis' in window){
+    scegli();
+    speechSynthesis.onvoiceschanged = scegli;
+  }
+
+  /* iOS pretende un tocco dell'utente prima di poter parlare */
+  function sblocca(){
+    if (sbloccata || !('speechSynthesis' in window)) return;
+    try { const u = new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); sbloccata=true; } catch(e){}
+  }
+
+  function parla(t){
+    if (!M.getB('vocale',true) || !('speechSynthesis' in window)) return;
+    try {
+      speechSynthesis.cancel();
+      const pulito = String(t).replace(/```[\s\S]*?```/g,' ').replace(/https?:\/\/\S+/g,'')
+        .replace(/[*_#`>\[\]|]/g,' ').replace(/\s+/g,' ').trim().slice(0,900);
+      if (!pulito) return;
+      const u = new SpeechSynthesisUtterance(pulito);
+      u.lang = 'it-IT'; u.rate = 1.0; u.pitch = 0.85;
+      if (vocePref) u.voice = vocePref;
+      u.onstart = ()=>{ Scena.modo = 2; didascalia('Jarvis parla'); };
+      u.onend = ()=>{ Scena.modo = 0; didascalia('In ascolto'); };
+      speechSynthesis.speak(u);
+    } catch(e){}
+  }
+  function ferma(){ try{ speechSynthesis.cancel(); }catch(e){} Scena.modo=0; didascalia('In ascolto'); }
+
+  /* registrazione: Safari su iPhone non ha il riconoscimento vocale,
+     quindi registriamo e facciamo trascrivere a Whisper */
+  let rec = null, pezzi = [], attiva = false;
+  async function registra(){
+    if (attiva){ stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      pezzi = [];
+      const tipi = ['audio/mp4','audio/webm;codecs=opus','audio/webm',''];
+      const tipo = tipi.find(t=>!t || (window.MediaRecorder && MediaRecorder.isTypeSupported(t)));
+      rec = new MediaRecorder(stream, tipo ? {mimeType:tipo} : undefined);
+      rec.ondataavailable = e => { if (e.data.size) pezzi.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t=>t.stop());
+        attiva = false; $('btnVoce').textContent = '🎤'; didascalia('Trascrivo...');
+        Scena.modo = 1;
+        const blob = new Blob(pezzi, {type: rec.mimeType || 'audio/mp4'});
+        if (blob.size < 1200){ didascalia('In ascolto'); Scena.modo=0; scrivi('sys','Non ho sentito nulla.'); return; }
+        const testo = await Cervello.trascrivi(blob);
+        if (!testo){ didascalia('In ascolto'); Scena.modo=0; scrivi('sys','Non sono riuscito a trascrivere l\'audio.'); return; }
+        $('testo').value = testo;
+        invia();
+      };
+      rec.start();
+      attiva = true;
+      $('btnVoce').textContent = '⏹';
+      didascalia('Ti ascolto... tocca di nuovo per fermare');
+      Scena.modo = 1;
+    } catch(e){
+      scrivi('sys','Non riesco ad accedere al microfono. Su iPhone serve Safari e il permesso del microfono.');
+    }
+  }
+  function stop(){ try{ if (rec && rec.state!=='inactive') rec.stop(); }catch(e){} }
+
+  return {parla, ferma, sblocca, registra, inCorso: ()=>attiva};
+})();
+
+/* ====================================================================
+   5. LA SCENA OLOGRAFICA
+   ==================================================================== */
+const Scena = (() => {
+  const tela = $('tela'), ctx = tela.getContext('2d');
+  let W=0, H=0, dpr=1, t0=performance.now();
+  const acc = {r:56,g:211,b:232};
+  const col = a => 'rgba('+acc.r+','+acc.g+','+acc.b+','+Math.max(0,Math.min(1,a))+')';
+  const bia = a => 'rgba(226,250,255,'+Math.max(0,Math.min(1,a))+')';
+
+  const N = 150, px=[], py=[], pz=[];
+  for (let i=0;i<N;i++){
+    const u = Math.random()*Math.PI*2, v = (Math.random()-0.5)*Math.PI;
+    px.push(Math.cos(u)*Math.cos(v)); py.push(Math.sin(v)*0.85); pz.push(Math.sin(u)*Math.cos(v));
+  }
+
+  function ridimensiona(){
+    const r = $('scena').getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio||1, 2.5);
+    W = r.width; H = r.height;
+    tela.width = Math.max(2, Math.floor(W*dpr));
+    tela.height = Math.max(2, Math.floor(H*dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', ridimensiona);
+
+  const S = {modo:0, mano:false, manoVista:false, mx:.5, my:.5, pugno:false, apertura:.5, vicino:0, rot:0, vel:0, zoom:1};
+
+  function disegna(){
+    const t = (performance.now()-t0)/1000;
+    if (!W||!H){ ridimensiona(); }
+    ctx.clearRect(0,0,W,H);
+    if (!Camera.attiva) { ctx.fillStyle = '#04070e'; ctx.fillRect(0,0,W,H); }
+
+    const cx = W/2, cy = H*0.46, s = Math.min(W,H)*0.34;
+    const energia = S.modo===1 ? 1 : (S.modo===2 ? 0.7 : 0.3);
+
+    proiettore(cx, cy, s, t);
+    alone(cx, cy, s, t, energia);
+    cervello(cx, cy, s, t, energia);
+    anelli(cx, cy, s, t);
+    if (S.mano) cursore(s, t);
+    scanline(t);
+
+    /* inerzia della rotazione */
+    S.rot += S.vel; S.vel *= 0.94; if (Math.abs(S.vel)<0.0004) S.vel=0;
+    S.rot += 0.0022;
+    requestAnimationFrame(disegna);
+  }
+
+  function proiettore(cx, cy, s, t){
+    const by = cy + s*1.45, br = s*0.62, cima = cy - s*0.95;
+    const g = ctx.createLinearGradient(cx, by, cx, cima);
+    g.addColorStop(0, col(0.22)); g.addColorStop(0.45, col(0.06)); g.addColorStop(1, col(0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(cx-br*0.42, by); ctx.lineTo(cx-s*1.15, cima);
+    ctx.lineTo(cx+s*1.15, cima); ctx.lineTo(cx+br*0.42, by); ctx.closePath(); ctx.fill();
+    const puls = 0.5+0.5*Math.sin(t*2);
+    ctx.lineWidth = 2;
+    for (let k=0;k<3;k++){
+      const rr = br*(1-k*0.26);
+      ctx.strokeStyle = col((0.6-k*0.15)*(0.72+0.28*puls));
+      ctx.beginPath(); ctx.ellipse(cx, by, rr, rr*0.21, 0, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.fillStyle = bia(0.85);
+    ctx.beginPath(); ctx.arc(cx, by, s*0.028*(0.85+0.15*puls), 0, Math.PI*2); ctx.fill();
+  }
+
+  function alone(cx, cy, s, t, e){
+    const r = s*(1.5+0.06*Math.sin(t*2.2));
+    const g = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+    g.addColorStop(0, col(0.10+0.16*e)); g.addColorStop(1, col(0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  }
+
+  function cervello(cx, cy, s, t, e){
+    const rot = S.rot*1.6 + t*0.15;
+    const co = Math.cos(rot), si = Math.sin(rot);
+    const R = s*0.72*S.zoom;
+    const pt = [];
+    for (let i=0;i<N;i++){
+      const x = px[i]*co - pz[i]*si, z = px[i]*si + pz[i]*co;
+      const k = 900/(900+z*R);
+      pt.push([cx + x*R*k*(1+0.12*Math.sin(t+i)), cy + py[i]*R*k*0.78, k]);
+    }
+    ctx.lineWidth = 1;
+    for (let i=0;i<N;i+=1){
+      for (let j=i+1;j<Math.min(i+4,N);j++){
+        const dx=pt[i][0]-pt[j][0], dy=pt[i][1]-pt[j][1];
+        if (dx*dx+dy*dy < (s*0.19)*(s*0.19)){
+          ctx.strokeStyle = col(0.10+0.16*e);
+          ctx.beginPath(); ctx.moveTo(pt[i][0],pt[i][1]); ctx.lineTo(pt[j][0],pt[j][1]); ctx.stroke();
+        }
+      }
+    }
+    for (let i=0;i<N;i++){
+      const vivo = 0.5+0.5*Math.sin(t*2.6+i*0.7);
+      ctx.fillStyle = (i%9===0) ? bia(0.55+0.4*vivo*e) : col(0.3+0.6*vivo*e);
+      ctx.beginPath(); ctx.arc(pt[i][0], pt[i][1], 1.3+2.0*pt[i][2]*(0.4+0.6*vivo), 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  function anelli(cx, cy, s, t){
+    for (let k=0;k<4;k++){
+      const rr = s*(1.02+0.2*k)*S.zoom, sc = 0.26+0.09*k;
+      const verso = k%2 ? -1 : 1, a = t*(0.6+0.42*k)*verso + k*0.8;
+      ctx.lineWidth = 2.4;
+      ctx.strokeStyle = col(0.55-k*0.1);
+      ctx.beginPath(); ctx.ellipse(cx,cy,rr,rr*sc,0,a,a+2.2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx,cy,rr,rr*sc,0,a+Math.PI,a+Math.PI+1.6); ctx.stroke();
+      ctx.lineWidth = 1.4; ctx.strokeStyle = col(0.18);
+      for (let d=0; d<Math.PI*2; d+=Math.PI/9){
+        const x1=cx+Math.cos(d+a*0.3)*rr, y1=cy+Math.sin(d+a*0.3)*rr*sc;
+        ctx.beginPath(); ctx.moveTo(x1,y1);
+        ctx.lineTo(cx+Math.cos(d+a*0.3)*rr*1.05, cy+Math.sin(d+a*0.3)*rr*sc*1.05); ctx.stroke();
+      }
+    }
+  }
+
+  function cursore(s, t){
+    if (!S.manoVista){
+      ctx.fillStyle = col(0.5); ctx.font = Math.round(s*0.09)+'px -apple-system,sans-serif';
+      ctx.textAlign='center'; ctx.fillText('MOSTRA LA MANO', W/2, H-14);
+      return;
+    }
+    const x = S.mx*W, y = S.my*H, r = s*(0.14+0.12*S.vicino);
+    const g = ctx.createRadialGradient(x,y,0,x,y,r*2.2);
+    g.addColorStop(0, col(S.pugno?0.35:0.18)); g.addColorStop(1, col(0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r*2.2,0,Math.PI*2); ctx.fill();
+    ctx.lineWidth = 3;
+    if (S.pugno){
+      ctx.fillStyle = col(0.55); ctx.beginPath(); ctx.arc(x,y,r*0.55,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = bia(0.9); ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x,y,r*1.5,r*1.5,0,t*3.8,t*3.8+1.2); ctx.stroke();
+    } else {
+      ctx.strokeStyle = col(0.8); ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+      for (let d=0; d<Math.PI*2; d+=Math.PI*2/5){
+        const a=d+t*0.7;
+        ctx.lineWidth=2.5;
+        ctx.beginPath();
+        ctx.moveTo(x+Math.cos(a)*r*1.25, y+Math.sin(a)*r*1.25);
+        ctx.lineTo(x+Math.cos(a)*r*(1.25+0.45*S.apertura), y+Math.sin(a)*r*(1.25+0.45*S.apertura));
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = S.pugno ? bia(0.9) : col(0.65);
+    ctx.font = Math.round(s*0.075)+'px -apple-system,sans-serif'; ctx.textAlign='center';
+    ctx.fillText(S.pugno?'PRESA':'APERTA', x, y+r*2.4);
+  }
+
+  function scanline(t){
+    ctx.fillStyle = col(0.045);
+    for (let y=(t*55)%5; y<H; y+=5) ctx.fillRect(0,y,W,1);
+  }
+
+  ridimensiona();
+  requestAnimationFrame(disegna);
+  return S;
+})();
+
+/* ====================================================================
+   6. FOTOCAMERA: occhi e tracciamento della mano
+   ==================================================================== */
+const Camera = (() => {
+  const video = $('video');
+  let stream = null, attiva = false, modo = '', filo = null;
+  const lavoro = document.createElement('canvas');
+  const lc = lavoro.getContext('2d', {willReadFrequently:true});
+  let lisciaX = .5, lisciaY = .5;
+
+  async function accendi(fronte){
+    spegni();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode: fronte ? 'user' : 'environment', width:{ideal:640}, height:{ideal:480} },
+        audio:false });
+      video.srcObject = stream;
+      await video.play();
+      attiva = true;
+      video.classList.add('vedi');
+      return true;
+    } catch(e){
+      scrivi('sys','Non riesco ad accedere alla fotocamera. Su iPhone serve Safari e il permesso.');
+      return false;
+    }
+  }
+
+  function spegni(){
+    if (filo){ clearInterval(filo); filo = null; }
+    if (stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+    video.classList.remove('vedi');
+    attiva = false; modo = '';
+    Scena.mano = false; Scena.manoVista = false;
+  }
+
+  function fotogramma(){
+    if (!attiva || !video.videoWidth) return null;
+    lavoro.width = 640; lavoro.height = Math.round(640*video.videoHeight/video.videoWidth);
+    lc.drawImage(video, 0, 0, lavoro.width, lavoro.height);
+    return lavoro.toDataURL('image/jpeg', 0.82);
+  }
+
+  /* --- occhi: guarda e racconta --- */
+  async function occhi(){
+    if (!attiva || modo!=='occhi'){ modo='occhi'; if (!await accendi(false)) return; }
+    didascalia('Sto guardando...'); Scena.modo = 1;
+    await new Promise(r=>setTimeout(r,700));
+    const img = fotogramma();
+    if (!img){ didascalia('In ascolto'); Scena.modo=0; return; }
+    scrivi('sys','Guardo...');
+    const r = await Cervello.vedi(img, 'Cosa inquadra la fotocamera?');
+    Scena.modo = 0; didascalia('In ascolto');
+    scrivi('jarvis', r); Voce.parla(r);
+  }
+
+  /* --- mano: stesso metodo dell'app Android, portato nel browser ---
+     Nei pixel la pelle occupa una regione precisa dello spazio YCbCr:
+     la calcoliamo dai valori RGB del fotogramma.                      */
+  function analizzaMano(){
+    if (!attiva || !video.videoWidth) return;
+    const w = 160, h = Math.round(160*video.videoHeight/video.videoWidth);
+    lavoro.width = w; lavoro.height = h;
+    lc.drawImage(video, 0, 0, w, h);
+    let d;
+    try { d = lc.getImageData(0,0,w,h).data; } catch(e){ return; }
+
+    let conta=0, sx=0, sy=0, minX=w, maxX=0, minY=h, maxY=0;
+    for (let y=0;y<h;y++){
+      for (let x=0;x<w;x++){
+        const i=(y*w+x)*4, R=d[i], G=d[i+1], B=d[i+2];
+        const Y = 0.299*R+0.587*G+0.114*B;
+        if (Y<45 || Y>250) continue;
+        const Cb = 128 - 0.168736*R - 0.331264*G + 0.5*B;
+        const Cr = 128 + 0.5*R - 0.418688*G - 0.081312*B;
+        if (Cb<72 || Cb>138 || Cr<128 || Cr>182) continue;
+        if (Cr<=Cb) continue;
+        conta++; sx+=x; sy+=y;
+        if (x<minX)minX=x; if (x>maxX)maxX=x;
+        if (y<minY)minY=y; if (y>maxY)maxY=y;
+      }
+    }
+    const frazione = conta/(w*h);
+    if (frazione<0.006 || frazione>0.70){ Scena.manoVista = false; return; }
+
+    const bw = maxX-minX+1, bh = maxY-minY+1;
+    const riempimento = conta/(bw*bh);
+    const apertura = Math.max(0, Math.min(1, (0.80-riempimento)/0.35));
+
+    /* la fotocamera frontale e specchiata */
+    let nx = 1 - (sx/conta)/w, ny = (sy/conta)/h;
+    lisciaX += (nx-lisciaX)*0.35; lisciaY += (ny-lisciaY)*0.35;
+
+    const prima = Scena.mx;
+    Scena.mx = lisciaX; Scena.my = lisciaY;
+    Scena.apertura = apertura;
+    Scena.vicino = Math.min(1, frazione/0.30);
+    Scena.pugno = apertura < 0.35;
+    Scena.manoVista = true;
+
+    /* pugno chiuso = afferra e ruota */
+    if (Scena.pugno) Scena.vel = (Scena.mx - prima) * 2.2;
+    didascalia(Scena.pugno ? 'Presa: muovi la mano per ruotare' :
+      'Mano vista ('+Math.round(frazione*100)+'%) - chiudi il pugno per afferrare');
+  }
+
+  async function mano(){
+    if (modo==='mano'){ spegni(); didascalia('In ascolto'); return; }
+    modo='mano';
+    if (!await accendi(true)) { modo=''; return; }
+    Scena.mano = true;
+    didascalia('Mostra la mano alla fotocamera');
+    filo = setInterval(analizzaMano, 70);
+  }
+
+  return {get attiva(){return attiva;}, occhi, mano, spegni, fotogramma};
+})();
+
+/* ====================================================================
+   7. ALLEGATI
+   ==================================================================== */
+async function allega(f){
+  if (!f) return;
+  $('chip').style.display='block';
+  $('chip').textContent = '📎 ' + f.name;
+  const tipo = f.type || '';
+  if (tipo.startsWith('image')){
+    const url = await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.readAsDataURL(f); });
+    scrivi('sys','Guardo l\'immagine...');
+    const r = await Cervello.vedi(url, 'Descrivi questa immagine.');
+    scrivi('jarvis', r); Voce.parla(r);
+  } else if (tipo.startsWith('audio')){
+    scrivi('sys','Trascrivo l\'audio...');
+    const t = await Cervello.trascrivi(f);
+    if (t){ scrivi('jarvis','Trascrizione: '+t); Voce.parla('Ecco la trascrizione. '+t.slice(0,400)); }
+    else scrivi('sys','Non sono riuscito a trascrivere.');
+  } else if (tipo.startsWith('text') || /\.(txt|md|csv|json|xml|log)$/i.test(f.name)){
+    const t = await f.text();
+    scrivi('sys','Ho letto '+f.name+' ('+t.length+' caratteri). Chiedimi cosa vuoi saperne.');
+    window.__allegato = t.slice(0, 12000);
+  } else {
+    scrivi('sys','Posso leggere immagini, audio e file di testo. Per i PDF, per ora, serve la versione Android.');
+  }
+}
+
+/* ====================================================================
+   8. INVIO
+   ==================================================================== */
+let occupato = false;
+async function invia(){
+  const t = $('testo').value.trim();
+  if (!t || occupato) return;
+  $('testo').value = ''; $('testo').style.height = 'auto';
+  Voce.sblocca();
+  scrivi('tu', t);
+
+  /* 1) comandi istantanei: esatti e senza rete */
+  const subito = istantaneo(t);
+  if (subito !== null){
+    scrivi('sys','(istantaneo)');
+    scrivi('jarvis', subito);
+    Voce.parla(subito.split('\n').slice(0,3).join('. '));
+    return;
+  }
+
+  occupato = true; Scena.modo = 1; didascalia('Sto pensando...'); stato('elaboro...');
+  try {
+    let domanda = t;
+    if (window.__allegato){ domanda = 'Contenuto del file allegato:\n'+window.__allegato+'\n\nDomanda: '+t; }
+    const r = await Cervello.chiedi(domanda);
+    scrivi('jarvis', r);
+    Voce.parla(r);
+  } catch(e){
+    scrivi('sys','Errore: '+e.message);
+  } finally {
+    occupato = false; Scena.modo = 0; didascalia('In ascolto'); aggiornaStato();
+  }
+}
+
+/* ====================================================================
+   9. COLLEGAMENTI
+   ==================================================================== */
+function aggiornaStato(){
+  const k = M.get('chiave','');
+  stato((k ? 'chiave inserita' : 'manca la chiave') + ' | web app');
+}
+
+$('btnInvia').onclick = invia;
+$('btnFerma').onclick = () => { Voce.ferma(); Camera.spegni(); didascalia('In ascolto'); };
+$('btnVoce').onclick = () => { Voce.sblocca(); Voce.registra(); };
+$('btnFile').onclick = () => $('file').click();
+$('file').onchange = e => allega(e.target.files[0]);
+$('testo').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(92,this.scrollHeight)+'px'; });
+$('testo').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); invia(); } });
+
+$('btnImp').onclick = () => { caricaImp(); $('impostazioni').classList.add('vedi'); };
+$('btnChiudi').onclick = () => { salvaImp(); $('impostazioni').classList.remove('vedi'); aggiornaStato(); };
+$('btnOcchi').onclick = () => { $('impostazioni').classList.remove('vedi'); Camera.occhi(); };
+$('btnMano').onclick = () => { $('impostazioni').classList.remove('vedi'); Camera.mano(); };
+$('btnSpegniCam').onclick = () => { Camera.spegni(); didascalia('In ascolto'); };
+$('btnSvuota').onclick = () => { Cervello.svuota(); scrivi('sys','Memoria cancellata.'); };
+$('btnProva').onclick = () => { Voce.sblocca(); Voce.parla('Eccomi, '+(M.get('nome','signore')||'signore')+'. Sono a sua disposizione.'); };
+
+function caricaImp(){
+  $('chiave').value = M.get('chiave','');
+  $('chiave2').value = M.get('chiave2','');
+  $('nome').value = M.get('nome','signore');
+  $('chisei').value = M.get('chisei','');
+  $('carattere').value = M.get('carattere','');
+  $('vocale').checked = M.getB('vocale',true);
+  $('memoria').checked = M.getB('memoria',true);
+}
+function salvaImp(){
+  M.set('chiave', $('chiave').value.trim());
+  M.set('chiave2', $('chiave2').value.trim());
+  M.set('nome', $('nome').value.trim() || 'signore');
+  M.set('chisei', $('chisei').value.trim());
+  M.set('carattere', $('carattere').value.trim());
+  M.setB('vocale', $('vocale').checked);
+  M.setB('memoria', $('memoria').checked);
+}
+
+/* avvio */
+aggiornaStato();
+$('versione').textContent = 'Jarvis web 1.0 - ' + (navigator.standalone ? 'installata sulla schermata Home' : 'aperta nel browser');
+if (!M.get('chiave','')){
+  scrivi('sys','Benvenuto. Apri Impostazioni e incolla la tua chiave Groq per cominciare.');
+} else {
+  scrivi('sys','Pronto. Scrivi, oppure tocca il microfono per parlare.');
+}
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+<script>
+  /* i comandi del computer hanno bisogno di arrivare a queste due */
+  window.Voce = Voce; window.Cervello = Cervello;
+</script>
+<script src="pc.js"></script>
+</body>
+</html>
