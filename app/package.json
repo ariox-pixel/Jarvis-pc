@@ -1,0 +1,50 @@
+{
+  "name": "jarvis-pc",
+  "version": "1.0.0",
+  "description": "JARVIS by Ariosto Prudenziano - assistente per Windows",
+  "author": "Ariosto Prudenziano",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "it.jarvis.pc",
+    "productName": "JARVIS",
+    "copyright": "Ariosto Prudenziano",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "build/icon.ico"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "portable": {
+      "artifactName": "JARVIS-portatile.exe"
+    },
+    "nsis": {
+      "artifactName": "JARVIS-installazione.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "JARVIS"
+    }
+  }
+}
