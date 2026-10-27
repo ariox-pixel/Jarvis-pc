@@ -1103,9 +1103,11 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')){
 }
 </script>
 <script>
-  /* i comandi del computer hanno bisogno di arrivare a queste due */
-  window.Voce = Voce; window.Cervello = Cervello;
+  /* dichiarate con const, quindi non finiscono da sole su window:
+     i file qui sotto hanno bisogno di arrivarci */
+  window.Voce = Voce; window.Cervello = Cervello; window.M = M; window.Ing = Ing;
 </script>
+<script src="cervello.js"></script>
 <script src="pc.js"></script>
 </body>
 </html>
