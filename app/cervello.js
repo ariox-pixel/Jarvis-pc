@@ -421,7 +421,12 @@
       strumento('registra_movimento', 'Registra una spesa (importo negativo) o un\'entrata (positivo).', { importo: S('number', 'euro, negativo se spesa'), causale: S('string', 'per cosa') }),
       strumento('riepilogo_conti', 'Entrate, uscite e saldo del mese.', {}),
       strumento('cerca_nei_ricordi', 'Cerca fra TUTTE le conversazioni passate. Usalo quando l\'utente dice "ricordi quando", "ne parlammo", "l\'altra volta".', { cosa: S('string', 'cosa cercare') }),
-      strumento('mie_abitudini', 'Le abitudini che Jarvis ha notato nelle richieste dell\'utente.', {})
+      strumento('mie_abitudini', 'Le abitudini che Jarvis ha notato nelle richieste dell\'utente.', {}),
+      strumento('crea_promemoria', 'Imposta un promemoria o una sveglia a un orario preciso.', { fra_minuti: S('number', 'fra quanti minuti da adesso; metti 0 se usi un orario'), ora_del_giorno: S('string', 'orario in formato 15:30, oppure stringa vuota'), testo: S('string', 'cosa ricordare'), e_sveglia: S('boolean', 'true se deve squillare come una sveglia') }),
+      strumento('elenca_promemoria', 'Elenca i promemoria in programma.', {}),
+      strumento('crea_routine', 'Imposta un comando da eseguire ogni giorno alla stessa ora.', { ora_del_giorno: S('string', 'orario in formato 08:00'), comando: S('string', 'cosa Jarvis deve fare ogni giorno') }),
+      strumento('elenca_routine', 'Elenca le routine giornaliere attive.', {}),
+      strumento('controlla_tutto', 'Passa in rassegna subito batteria, spazio, memoria, attivita e conti, e restituisce i problemi trovati.', {})
     ],
     WEB: []
   };
@@ -469,6 +474,35 @@
         case 'registra_movimento': return Quaderno.movimento(parseFloat(args.importo), args.causale || '');
         case 'riepilogo_conti': return Quaderno.conti();
         case 'mie_abitudini': return Abitudini.riepilogo();
+
+        case 'crea_promemoria': {
+          if (!window.Proattivo) return 'I promemoria non sono disponibili.';
+          let quando = 0;
+          const fra = parseFloat(args.fra_minuti);
+          if (fra > 0) quando = Date.now() + fra * 60000;
+          else {
+            const m = /(\d{1,2})[:.](\d{2})/.exec(String(args.ora_del_giorno || ''));
+            if (!m) return 'Mi serve sapere quando: fra quanti minuti, oppure a che ora.';
+            const d = new Date();
+            d.setHours(parseInt(m[1], 10), parseInt(m[2], 10), 0, 0);
+            if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+            quando = d.getTime();
+          }
+          return window.Proattivo.Promemoria.aggiungi(quando, args.testo || 'promemoria',
+            args.e_sveglia === true || args.e_sveglia === 'true');
+        }
+        case 'elenca_promemoria':
+          return window.Proattivo ? window.Proattivo.Promemoria.elenco() : 'Non disponibile.';
+        case 'crea_routine': {
+          if (!window.Proattivo) return 'Le routine non sono disponibili.';
+          const m = /(\d{1,2})[:.](\d{2})/.exec(String(args.ora_del_giorno || ''));
+          if (!m) return 'Mi serve l\'ora, per esempio 08:00.';
+          return window.Proattivo.Routine.aggiungi(parseInt(m[1], 10), parseInt(m[2], 10), args.comando || '');
+        }
+        case 'elenca_routine':
+          return window.Proattivo ? window.Proattivo.Routine.elenco() : 'Non disponibile.';
+        case 'controlla_tutto':
+          return window.Proattivo ? await window.Proattivo.Sentinella.controlla(true) : 'Non disponibile.';
         case 'cerca_nei_ricordi': {
           const t = Archivio.cerca(args.cosa, 4);
           if (!t.length) return 'Non trovo niente del genere nelle conversazioni passate.';
