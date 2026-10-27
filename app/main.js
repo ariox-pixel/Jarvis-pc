@@ -464,6 +464,18 @@ ipcMain.handle('pc-lento', async (evento, azione, arg) => {
         return JSON.stringify(fuori);
       }
 
+      case 'foto-scegli': {
+        const r = await dialog.showOpenDialog(finestra, {
+          title: 'Scegli la foto per il volto olografico',
+          filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'] }],
+          properties: ['openFile']
+        });
+        if (r.canceled || !r.filePaths.length) return '';
+        const id = 'f' + (++contatoreBrani);
+        brani.set(id, r.filePaths[0]);
+        return 'jarvis://media/' + id;
+      }
+
       case 'musica-cartella': {
         const r = await dialog.showOpenDialog(finestra, {
           title: 'Scegli una cartella di musica',
