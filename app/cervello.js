@@ -41,7 +41,7 @@
         "id": "operatore",
         "label": "Operatore",
         "desc": "Comanda il COMPUTER Windows: apre programmi, siti e cartelle, volume, schermate, blocco schermo, spegnimento, ricerca fra i file, stato del sistema, appunti, chiusura programmi.",
-        "sys": "Sei l'Operatore del team di Jarvis e comandi il computer Windows dell'utente. Usa SEMPRE gli strumenti per agire davvero: non descrivere quello che faresti, fallo. Dopo aver agito riferisci in UNA frase breve cosa hai fatto. Se uno strumento fallisce dillo con onesta, senza fingere che sia andato a buon fine. Non puoi mandare SMS ne telefonare: questo e un computer, non un telefono.",
+        "sys": "Sei l'Operatore del team di Jarvis e comandi il computer Windows dell'utente. Usa SEMPRE gli strumenti per agire davvero: non descrivere quello che faresti, fallo. Dopo aver agito riferisci in UNA frase breve cosa hai fatto. Se uno strumento fallisce dillo con onesta, senza fingere che sia andato a buon fine. Hai anche tastiera e mouse: per scrivere dentro un programma porta prima davanti la sua finestra con porta_davanti, poi usa digita_testo. Sui file puoi lavorare solo dentro le cartelle personali dell'utente, e non cancelli mai: mandi nel cestino. Non puoi mandare SMS ne telefonare: questo e un computer, non un telefono.",
         "tools": "PC"
     },
     {
@@ -406,7 +406,22 @@
       strumento('chiudi_programma', 'Chiude un programma aperto.', { nome: S('string', 'nome del programma') }),
       strumento('spegni_computer', 'Avvia lo spegnimento fra un minuto. Usalo solo se l\'utente lo chiede chiaramente.', {}),
       strumento('annulla_spegnimento', 'Annulla uno spegnimento o riavvio gia avviato.', {}),
-      strumento('avvisa', 'Mostra una notifica di Windows.', { testo: S('string', 'testo della notifica') })
+      strumento('avvisa', 'Mostra una notifica di Windows.', { testo: S('string', 'testo della notifica') }),
+      strumento('digita_testo', 'Scrive del testo con la tastiera nella finestra attiva. Porta prima davanti la finestra giusta.', { testo: S('string', 'il testo da scrivere') }),
+      strumento('premi_tasto', 'Preme un tasto o una combinazione, per esempio "ctrl+s", "invio", "alt+tab", "f5".', { combinazione: S('string', 'es. ctrl+c') }),
+      strumento('clic_mouse', 'Fa un clic del mouse dove si trova il puntatore.', { tipo: S('string', '"sinistro", "destro" oppure "doppio"') }),
+      strumento('muovi_mouse', 'Sposta il puntatore in un punto dello schermo.', { x: S('number', 'posizione orizzontale'), y: S('number', 'posizione verticale') }),
+      strumento('scorri', 'Scorre la pagina o la finestra attiva.', { quanto: S('number', 'positivo scorre in basso, negativo in alto') }),
+      strumento('finestre_aperte', 'Elenca i titoli delle finestre attualmente aperte.', {}),
+      strumento('porta_davanti', 'Porta in primo piano una finestra cercandola per titolo.', { titolo: S('string', 'parte del titolo della finestra') }),
+      strumento('elenca_cartella', 'Elenca il contenuto di una cartella personale (documenti, desktop, download, immagini, musica, video).', { cartella: S('string', 'nome della cartella') }),
+      strumento('scrivi_file', 'Crea o sovrascrive un file di testo dentro le cartelle personali.', { percorso: S('string', 'es. "documenti/appunti.txt"'), contenuto: S('string', 'il testo da scrivere') }),
+      strumento('crea_cartella', 'Crea una cartella dentro le cartelle personali.', { percorso: S('string', 'es. "documenti/progetti"') }),
+      strumento('rinomina_file', 'Rinomina o sposta un file dentro le cartelle personali.', { da: S('string', 'percorso attuale'), a: S('string', 'nuovo percorso') }),
+      strumento('copia_file', 'Copia un file dentro le cartelle personali.', { da: S('string', 'percorso di partenza'), a: S('string', 'destinazione') }),
+      strumento('cestina_file', 'Sposta un file nel cestino di Windows. Non cancella mai definitivamente.', { percorso: S('string', 'percorso del file') }),
+      strumento('esegui_automazione', 'Esegue una automazione salvata, cioe una sequenza di comandi sotto un nome.', { nome: S('string', 'nome dell\'automazione') }),
+      strumento('elenca_automazioni', 'Elenca le automazioni salvate.', {})
     ],
     ING: [
       strumento('calcola', 'Esegue un calcolo matematico esatto. Usalo SEMPRE per i conti, anche banali.', { espressione: S('string', 'es. "45*12" oppure "radice(144)+10%di 200"') }),
@@ -459,6 +474,22 @@
         case 'leggi_file': return PC ? await PC.lento('leggi-file', args.percorso) : 'Non sono sul computer.';
         case 'chiudi_programma': return PC ? await PC.lento('chiudi-programma', args.nome) : 'Non sono sul computer.';
         case 'spegni_computer': return PC ? await PC.lento('spegni') : 'Non sono sul computer.';
+
+        case 'digita_testo': return PC ? await PC.lento('digita', args.testo) : 'Non sono sul computer.';
+        case 'premi_tasto': return PC ? await PC.lento('tasto', args.combinazione) : 'Non sono sul computer.';
+        case 'clic_mouse': return PC ? await PC.lento('mouse-clic', args.tipo || 'sinistro') : 'Non sono sul computer.';
+        case 'muovi_mouse': return PC ? await PC.lento('mouse-muovi', args.x + ',' + args.y) : 'Non sono sul computer.';
+        case 'scorri': return PC ? await PC.lento('mouse-scorri', String(args.quanto)) : 'Non sono sul computer.';
+        case 'finestre_aperte': return PC ? await PC.lento('finestre') : 'Non sono sul computer.';
+        case 'porta_davanti': return PC ? await PC.lento('finestra-davanti', args.titolo) : 'Non sono sul computer.';
+        case 'elenca_cartella': return PC ? await PC.lento('elenca-cartella', args.cartella) : 'Non sono sul computer.';
+        case 'scrivi_file': return PC ? await PC.lento('scrivi-file', JSON.stringify({ percorso: args.percorso, contenuto: args.contenuto })) : 'Non sono sul computer.';
+        case 'crea_cartella': return PC ? await PC.lento('crea-cartella', args.percorso) : 'Non sono sul computer.';
+        case 'rinomina_file': return PC ? await PC.lento('rinomina', JSON.stringify({ da: args.da, a: args.a })) : 'Non sono sul computer.';
+        case 'copia_file': return PC ? await PC.lento('copia-file', JSON.stringify({ da: args.da, a: args.a })) : 'Non sono sul computer.';
+        case 'cestina_file': return PC ? await PC.lento('cestina', args.percorso) : 'Non sono sul computer.';
+        case 'esegui_automazione': return window.Macro ? await window.Macro.esegui(String(args.nome || '').toLowerCase()) : 'Non disponibile.';
+        case 'elenca_automazioni': return window.Macro ? window.Macro.elenco() : 'Non disponibile.';
 
         case 'calcola':
           try { return args.espressione + ' = ' + window.Ing.calcola(args.espressione); }
